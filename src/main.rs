@@ -16,34 +16,41 @@ mod views;
 use crate::{
     alignment::Horizontal,
     client::Client,
-    views::{list, preview, List, Log, Preview},
+    views::{list, preview, List, Preview},
 };
 use iced::{alignment, executor, Application, Command, Element, Length, Renderer, Settings};
 use iced_aw::{Card, Modal};
 use iced_native::widget::helpers::{button, container, horizontal_rule, row, text, text_input};
-use std::{default::default, sync::Arc};
+use std::{default::default, io, sync::Arc};
 use tap::Pipe;
+use tracing::{error, warn};
 use utils::Result;
 
 pub fn main() -> iced::Result {
+    let (non_blocking, _guard) = tracing_appender::non_blocking(io::stdout());
+    tracing_subscriber::fmt()
+        // ---
+        .with_writer(non_blocking)
+        .init();
+
     App::run(Settings {
         window: iced::window::Settings {
             size: (1920, 800),
             resizable: true,
+            transparent: true,
             decorations: true,
             ..default()
         },
         default_font: Some(include_bytes!("../fonts/JetBrainsMono-Regular.ttf")),
         default_text_size: 17,
+        text_multithreading: true,
+        antialiasing: true,
         ..default()
     })
 }
 
 #[derive(Debug, Clone)]
 enum Message {
-    Silent,
-
-    ClearLog,
     ResetInit,
 
     HostChanged(String),
@@ -68,7 +75,6 @@ struct App {
 
     host: String,
     login: String,
-    log: Log,
 }
 
 impl Application for App
@@ -86,7 +92,6 @@ where
                 state: State::Login,
                 host: Client::DEFAULT_API.to_owned(),
                 login: String::new(),
-                log: default(),
             },
             Command::none(),
         )
@@ -102,12 +107,6 @@ where
     }
 
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
-        println!("{:?}", message);
-
-        if let Message::ClearLog = &message {
-            self.log.clear();
-        }
-
         match &mut self.state {
             State::Login => match message {
                 Message::HostChanged(new) => {
@@ -120,7 +119,7 @@ where
                 }
                 Message::OnLogin => {
                     if self.login.is_empty() {
-                        self.log.error("Login cannot be empty");
+                        error!("Login cannot be empty");
                         Command::none()
                     } else {
                         let Self { host, login, .. } = self;
@@ -150,7 +149,7 @@ where
                     }
                     Err(error) => {
                         self.state = State::Login;
-                        self.log.error(error);
+                        error!(%error);
                         Command::none()
                     }
                 },
@@ -169,7 +168,7 @@ where
                     }
 
                     if let list::Message::Error(error) = &message {
-                        self.log.error(error);
+                        error!(%error);
                     }
 
                     commands.push(list.update(message).map(Message::List));
@@ -178,10 +177,10 @@ where
                 }
                 Message::Preview(message) => {
                     if let preview::Message::Error(error) = &message {
-                        self.log.error(error);
+                        error!(%error);
                     }
                     if let preview::Message::Warn(error) = &message {
-                        self.log.warn(error);
+                        warn!(%error);
                     }
                     preview.update(message).map(Message::Preview)
                 }
@@ -202,11 +201,7 @@ where
             State::Ready { list, preview } => Self::ready(list, preview),
         };
 
-        let content = columee![
-            container(view).height(Length::FillPortion(4)),
-            horizontal_rule(10),
-            container(self.log()).height(Length::Fill)
-        ];
+        let content = container(view).height(Length::Fill);
 
         Modal::new(
             matches!(self.state, State::WaitLogin { .. }),
@@ -232,14 +227,6 @@ where
 }
 
 impl App {
-    fn log(&self) -> Element<'_, Message, Renderer<iced::Theme>> {
-        columee![
-            button("clear").on_press(Message::ClearLog),
-            self.log.view().map(|_| Message::Silent)
-        ]
-        .into()
-    }
-
     fn login<'a>(host: &str, login: &str) -> Element<'a, Message, Renderer<iced::Theme>> {
         columee![
             text_input("host", host, Message::HostChanged),
