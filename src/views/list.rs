@@ -50,10 +50,7 @@ impl List {
                 freezers: vec![],
                 client: client.clone(),
             },
-            Command::perform(
-                async move { Self::freezers_list(client, 0).await },
-                Message::PageAdd,
-            ),
+            Command::perform(Self::freezers_list(client, 0), Message::PageAdd),
         )
     }
 
@@ -74,10 +71,7 @@ impl List {
                     self.state = State::Loading;
                     let client = Arc::clone(&self.client);
                     let count = self.freezers.len();
-                    Command::perform(
-                        async move { Self::freezers_list(client, count).await },
-                        Message::PageAdd,
-                    )
+                    Command::perform(Self::freezers_list(client, count), Message::PageAdd)
                 }
             }
             _ => Command::none(),

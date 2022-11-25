@@ -156,7 +156,7 @@ impl Preview {
             let id = id.clone();
             let client = self.client.clone();
             return Command::perform(
-                async { Self::fetch_info(client, id).await },
+                Self::fetch_info(client, id),
                 Message::FetchInfo,
             );
         }
@@ -172,7 +172,7 @@ impl Preview {
                     }
                     Message::OnUpdate(Ok(Some(_))) => Command::none(),
                     Message::OnUpdate(Ok(None)) => Command::perform(
-                        async move { anyio!("unauthorized access - try login with high privileges") },
+                        anyio!("unauthorized access - try login with high privileges"),
                         Message::Warn,
                     ),
                     Message::OnDelete(Ok(is_delete)) => {
@@ -181,9 +181,7 @@ impl Preview {
                             Command::none()
                         } else {
                             Command::perform(
-                                async move {
-                                    anyio!("unauthorized access - try login with high privileges")
-                                },
+                                anyio!("unauthorized access - try login with high privileges"),
                                 Message::Warn,
                             )
                         }
@@ -194,7 +192,7 @@ impl Preview {
                                 freezer.products.iter().position(|(key, _)| key == &name)
                             {
                                 return Command::perform(
-                                    async move { anyio!("already exists `{name}` at `{index}`") },
+                                    anyio!("already exists `{name}` at `{index}`"),
                                     Message::Error,
                                 );
                             }
@@ -213,10 +211,7 @@ impl Preview {
                     }
                     Message::OnAddProduct(Ok(None)) => {
                         let product = self.product.clone();
-                        Command::perform(
-                            async move { anyio!("Not found product `{product}`") },
-                            Message::Error,
-                        )
+                        Command::perform(anyio!("Not found product `{product}`"), Message::Error)
                     }
                     Message::OnAddProduct(Err(error)) => {
                         Command::perform(async move { error }, Message::Error)

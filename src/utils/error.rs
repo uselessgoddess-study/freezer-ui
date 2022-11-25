@@ -32,7 +32,7 @@ impl Display for Error {
 #[macro_export]
 macro_rules! anyio {
     ($($tt:tt)*) => {
-        $crate::utils::Error::from(std::io::Error::other(format!($($tt)*)))
+        async move { $crate::utils::Error::from(std::io::Error::other(format!($($tt)*))) }
     };
 }
 
